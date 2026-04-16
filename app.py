@@ -42,6 +42,33 @@ Upload a PDF and ask questions about its content!
 with st.sidebar:
     st.header("⚙️ Configuration")
     
+    st.subheader("🤖 LLM Provider")
+    llm_provider = st.radio(
+        "Choose LLM Provider",
+        ["Ollama (Free, Local)", "OpenAI (Paid, Cloud)"],
+        help="Ollama runs locally and is free. OpenAI requires an API key and credits."
+    )
+    
+    if "Ollama" in llm_provider:
+        ollama_model = st.selectbox(
+            "Ollama Model",
+            ["mistral", "llama2", "neural-chat", "dolphin-mixtral"],
+            help="Choose a model. mistral is recommended for speed."
+        )
+        ollama_url = st.text_input(
+            "Ollama URL",
+            value="http://localhost:11434",
+            help="URL where Ollama is running"
+        )
+    else:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            st.error("⚠️ OPENAI_API_KEY not found in .env file")
+            st.info("Please create a .env file with: OPENAI_API_KEY=your_key_here")
+            st.stop()
+    
+    st.divider()
+    
     chunk_size = st.slider(
         "Chunk Size (characters)",
         min_value=200,
@@ -70,7 +97,7 @@ with st.sidebar:
     
     st.divider()
     st.header("📚 About RAG")
-    st.markdown("""
+    st.markdown(""" 
     **RAG (Retrieval-Augmented Generation)** combines:
     
     1. **Retrieval**: Find relevant information from documents
@@ -79,12 +106,6 @@ with st.sidebar:
     
     This prevents hallucination and grounds answers in facts!
     """)
-
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    st.error("⚠️ OPENAI_API_KEY not found in .env file")
-    st.info("Please create a .env file with: OPENAI_API_KEY=your_key_here")
-    st.stop()
 
 col1, col2 = st.columns([2, 1])
 
@@ -162,7 +183,20 @@ if uploaded_file is not None:
             with status_placeholder.container():
                 st.success("✅ Embeddings ready")
             
-            retriever = AdvancedRAGRetriever(vector_store, api_key)
+            # Initialize retriever with selected provider
+            if "Ollama" in llm_provider:
+                retriever = AdvancedRAGRetriever(
+                    vector_store,
+                    provider="ollama",
+                    model=ollama_model,
+                    base_url=ollama_url
+                )
+            else:
+                retriever = AdvancedRAGRetriever(
+                    vector_store,
+                    provider="openai",
+                    api_key=api_key
+                )
             
             st.subheader("❓ Ask Questions")
             st.markdown("Ask anything about the document content:")
@@ -187,33 +221,59 @@ if uploaded_file is not None:
             
             if search_button and question:
                 with st.spinner("🤔 Thinking..."):
-                    if retrieval_method == "Multi-Query":
-                        result = retriever.generate_answer_with_multi_query(
-                            question,
-                            k=num_results,
-                            include_sources=show_sources
-                        )
-                    else:
-                        result = retriever.generate_answer(
-                            question,
-                            k=num_results,
-                            include_sources=show_sources
-                        )
-                
-                st.subheader("💡 Answer")
-                st.write(result['answer'])
-                
-                st.subheader(f"📚 Sources Used ({result['num_sources']})")
-                
-                if show_sources and result.get('sources'):
-                    for i, source in enumerate(result['sources'], 1):
-                        with st.expander(f"Source {i}"):
-                            st.text(source)
-                else:
-                    st.caption("Sources not included in response")
-                
-                st.divider()
-                st.success("✅ Answer generated successfully!")
+                    try:
+                        if retrieval_method == "Multi-Query":
+                            result = retriever.generate_answer_with_multi_query(
+                                question,
+                                k=num_results,
+                                include_sources=show_sources
+                            )
+                        else:
+                            result = retriever.generate_answer(
+                                question,
+                                k=num_results,
+                                include_sources=show_sources
+                            )
+                        
+                        st.subheader("💡 Answer")
+                        st.write(result['answer'])
+                        
+                        st.subheader(f"📚 Sources Used ({result['num_sources']})")
+                        
+                        if show_sources and result.get('sources'):
+                            for i, source in enumerate(result['sources'], 1):
+                                with st.expander(f"Source {i}"):
+                                    st.text(source)
+                        else:
+                            st.caption("Sources not included in response")
+                        
+                        st.divider()
+                        st.success("✅ Answer generated successfully!")
+                    
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "429" in error_msg or "quota" in error_msg.lower() or "insufficient_quota" in error_msg.lower():
+                            st.error(
+                                "❌ **API Quota Exceeded**\n\n"
+                                "Your OpenAI API account has reached its usage limit or billing issue.\n\n"
+                                "**Solutions:**\n"
+                                "1. Check your OpenAI account: https://platform.openai.com/account/billing/overview\n"
+                                "2. Add a payment method if needed\n"
+                                "3. Check your API usage and limits\n"
+                                "4. Use a different API key if you have multiple accounts\n\n"
+                                "Update your `.env` file with a valid API key and restart the app."
+                            )
+                        elif "401" in error_msg or "invalid" in error_msg.lower():
+                            st.error(
+                                "❌ **Invalid API Key**\n\n"
+                                "Your OpenAI API key is invalid or expired.\n\n"
+                                "**Solutions:**\n"
+                                "1. Get a new API key: https://platform.openai.com/api-keys\n"
+                                "2. Update your `.env` file with the correct key\n"
+                                "3. Restart the app"
+                            )
+                        else:
+                            st.error(f"❌ **Error generating answer:**\n\n{error_msg}")
             
             elif search_button:
                 st.warning("Please enter a question first!")

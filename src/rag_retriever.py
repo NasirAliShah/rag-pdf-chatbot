@@ -27,25 +27,25 @@ from typing import List, Tuple, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from .embeddings_db import RAGVectorStore, EmbeddingsGenerator
+from .llm_provider import get_llm_provider
 
 
 class RAGRetriever:
     """Retrieves relevant chunks and generates answers using LLM."""
     
-    def __init__(self, vector_store: RAGVectorStore, api_key: str):
+    def __init__(self, vector_store: RAGVectorStore, provider: str = "ollama", **kwargs):
         """
         Initialize the RAG retriever.
         
         Args:
-            vector_store: RAGVectorStore instance with loaded documents
-            api_key: OpenAI API key
+            vector_store: RAGVectorStore instance
+            provider: "ollama" or "openai"
+            **kwargs: Provider-specific arguments
+                For Ollama: model="mistral", base_url="http://localhost:11434"
+                For OpenAI: api_key="your_key", model="gpt-3.5-turbo"
         """
         self.vector_store = vector_store
-        self.llm = ChatOpenAI(
-            api_key=api_key,
-            model="gpt-3.5-turbo",
-            temperature=0.7
-        )
+        self.llm_provider = get_llm_provider(provider, **kwargs)
     
     def retrieve(self, query: str, k: int = 5) -> List[Tuple[str, float]]:
         """
@@ -107,8 +107,7 @@ Please answer the question based on the context provided above."""
             HumanMessage(content=user_prompt)
         ]
         
-        response = self.llm.invoke(messages)
-        answer = response.content
+        answer = self.llm_provider.invoke(messages)
         
         result = {
             'answer': answer,
@@ -196,8 +195,7 @@ Please answer the question based on the context provided above."""
             HumanMessage(content=user_prompt)
         ]
         
-        response = self.llm.invoke(messages)
-        answer = response.content
+        answer = self.llm_provider.invoke(messages)
         
         result = {
             'answer': answer,
@@ -267,8 +265,7 @@ Please answer the question based on the context provided above."""
             HumanMessage(content=user_prompt)
         ]
         
-        response = self.llm.invoke(messages)
-        answer = response.content
+        answer = self.llm_provider.invoke(messages)
         
         result = {
             'answer': answer,
@@ -294,8 +291,8 @@ Return only the questions, one per line, without numbering."""
             HumanMessage(content=f"Original question: {query}")
         ]
         
-        response = self.llm.invoke(messages)
-        variations = response.content.strip().split('\n')
+        response = self.llm_provider.invoke(messages)
+        variations = response.strip().split('\n')
         variations = [v.strip() for v in variations if v.strip()]
         
         return [query] + variations

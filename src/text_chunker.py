@@ -108,25 +108,24 @@ class TextChunker:
 
 class RecursiveCharacterSplitter:
     """
-    More advanced chunker that splits by different separators.
+    Simple chunker that splits text into fixed-size overlapping chunks.
     
-    Instead of just splitting by character count, it tries to split by:
-    1. Paragraphs (double newlines)
-    2. Sentences (periods)
-    3. Words (spaces)
-    4. Characters (last resort)
-    
-    This keeps related content together better.
+    This is a simplified version that reliably creates multiple chunks
+    with proper overlap between them.
     """
     
     def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be positive")
+        if chunk_overlap >= chunk_size:
+            raise ValueError("chunk_overlap must be less than chunk_size")
+        
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.separators = ["\n\n", "\n", " ", ""]
     
     def split_text(self, text: str) -> List[str]:
         """
-        Split text using recursive character splitting.
+        Split text into overlapping chunks.
         
         Args:
             text: The text to split
@@ -134,59 +133,27 @@ class RecursiveCharacterSplitter:
         Returns:
             List of text chunks
         """
-        final_chunks = []
-        separator = self.separators[-1]
+        if not text or len(text) == 0:
+            return []
         
-        for _s in self.separators:
-            if _s == "":
-                separator = _s
+        chunks = []
+        start = 0
+        
+        while start < len(text):
+            # Get chunk from start to start + chunk_size
+            end = start + self.chunk_size
+            chunk = text[start:end]
+            
+            # Only add non-empty chunks
+            if chunk.strip():
+                chunks.append(chunk)
+            
+            # Move start forward by (chunk_size - overlap)
+            # This creates overlap between chunks
+            start += self.chunk_size - self.chunk_overlap
+            
+            # Prevent infinite loop if we're at the end
+            if start >= len(text):
                 break
-            if _s in text:
-                separator = _s
-                break
         
-        if separator:
-            splits = text.split(separator)
-        else:
-            splits = list(text)
-        
-        good_splits = []
-        for s in splits:
-            if len(s) < self.chunk_size:
-                good_splits.append(s)
-            else:
-                if good_splits:
-                    merged_text = self._merge_splits(good_splits, separator)
-                    final_chunks.extend(merged_text)
-                    good_splits = []
-                other_info = self.split_text(s)
-                final_chunks.extend(other_info)
-        
-        if good_splits:
-            merged_text = self._merge_splits(good_splits, separator)
-            final_chunks.extend(merged_text)
-        
-        return final_chunks
-    
-    def _merge_splits(self, splits: List[str], separator: str) -> List[str]:
-        """Merge splits into chunks of appropriate size."""
-        separator_len = len(separator)
-        good_splits = []
-        
-        for s in splits:
-            if len(s) < self.chunk_size:
-                good_splits.append(s)
-            else:
-                if good_splits:
-                    merged_text = separator.join(good_splits)
-                    if len(merged_text) > self.chunk_size:
-                        if good_splits:
-                            merged_text = self._merge_splits(good_splits, separator)
-                            good_splits = []
-                good_splits.append(s)
-        
-        if good_splits:
-            merged_text = separator.join(good_splits)
-            return [merged_text]
-        
-        return []
+        return chunks
