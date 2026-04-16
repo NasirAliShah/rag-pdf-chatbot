@@ -205,3 +205,53 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# RAG-specific files
+# Virtual environments (project-specific)
+venu/
+ve/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+
+# Uploaded PDF files (user uploads)
+uploads/
+*.pdf
+
+# Vector store and cached embeddings
+vector_store/
+vector_store_backup/
+*.faiss
+*.pkl
+*.npy
+
+# Streamlit cache and config
+.streamlit/
+streamlit_cache/
+
+# Model cache from Hugging Face
+.cache/
+models/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS-specific files
+Thumbs.db
+.DS_Store
+
+# Testing and coverage
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Logs
+*.log
+logs/
